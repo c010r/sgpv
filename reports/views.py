@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 from inventory.models import InventoryMovement, InventoryStock
 from reports.excel import render_excel_report
 from reports.pdf import render_pdf_report
-from sales.models import CashSession, Sale
+from sales.models import CashSession, Sale, SaleItem
 from settings_app.models import BarSession
 from users.permissions import IsSupervisorOrAbove
 
@@ -105,6 +105,128 @@ class InventoryMovementsReportView(APIView):
             xlsx_filename="reporte_movimientos_inventario.xlsx",
         )
         return exported or Response(rows)
+
+
+class ProfitByProductReportView(APIView):
+    permission_classes = [IsSupervisorOrAbove]
+
+    def get(self, request):
+        queryset = (
+            SaleItem.objects.filter(sale__status=Sale.Status.COMPLETED)
+            .values("product__id", "product__name")
+            .annotate(
+                quantity=Sum("quantity"),
+                revenue=Sum("line_total"),
+                cost=Sum("line_cost_total"),
+                profit=Sum("line_profit"),
+            )
+            .order_by("-profit")
+        )
+        rows = []
+        for row in queryset:
+            revenue = row["revenue"] or 0
+            profit = row["profit"] or 0
+            margin = (profit / revenue * 100) if revenue else 0
+            rows.append(
+                {
+                    "product_id": row["product__id"],
+                    "product_name": row["product__name"],
+                    "quantity": str(row["quantity"] or 0),
+                    "revenue": str(revenue),
+                    "cost": str(row["cost"] or 0),
+                    "profit": str(profit),
+                    "margin_pct": f"{margin:.2f}",
+                }
+            )
+        exported = maybe_export_response(
+            request,
+            title="Utilidad por Producto",
+            rows=rows,
+            pdf_filename="reporte_utilidad_por_producto.pdf",
+            xlsx_filename="reporte_utilidad_por_producto.xlsx",
+        )
+        return exported or Response(rows)
+
+
+class ProfitByRecipeReportView(APIView):
+    permission_classes = [IsSupervisorOrAbove]
+
+    def get(self, request):
+        queryset = (
+            SaleItem.objects.filter(sale__status=Sale.Status.COMPLETED, product__recipe__isnull=False)
+            .values("product__id", "product__name", "product__recipe__name")
+            .annotate(
+                quantity=Sum("quantity"),
+                revenue=Sum("line_total"),
+                cost=Sum("line_cost_total"),
+                profit=Sum("line_profit"),
+            )
+            .order_by("-profit")
+        )
+        rows = []
+        for row in queryset:
+            revenue = row["revenue"] or 0
+            profit = row["profit"] or 0
+            margin = (profit / revenue * 100) if revenue else 0
+            rows.append(
+                {
+                    "product_id": row["product__id"],
+                    "product_name": row["product__name"],
+                    "recipe_name": row["product__recipe__name"],
+                    "quantity": str(row["quantity"] or 0),
+                    "revenue": str(revenue),
+                    "cost": str(row["cost"] or 0),
+                    "profit": str(profit),
+                    "margin_pct": f"{margin:.2f}",
+                }
+            )
+        exported = maybe_export_response(
+            request,
+            title="Utilidad por Receta",
+            rows=rows,
+            pdf_filename="reporte_utilidad_por_receta.pdf",
+            xlsx_filename="reporte_utilidad_por_receta.xlsx",
+        )
+        return exported or Response(rows)
+
+
+class FinancialSummaryReportView(APIView):
+    permission_classes = [IsSupervisorOrAbove]
+
+    def get(self, request):
+        qs = Sale.objects.filter(status=Sale.Status.COMPLETED)
+        agg = qs.aggregate(
+            revenue=Sum("total"),
+            subtotal=Sum("subtotal"),
+            discounts=Sum("discount_amount"),
+            surcharges=Sum("surcharge_amount"),
+            cost=Sum("cost_total"),
+            profit=Sum("gross_profit"),
+            tickets=Count("id"),
+        )
+        revenue = agg["revenue"] or 0
+        profit = agg["profit"] or 0
+        margin = (profit / revenue * 100) if revenue else 0
+        rows = [
+            {
+                "tickets": agg["tickets"] or 0,
+                "subtotal": str(agg["subtotal"] or 0),
+                "discounts": str(agg["discounts"] or 0),
+                "surcharges": str(agg["surcharges"] or 0),
+                "revenue": str(revenue),
+                "cost": str(agg["cost"] or 0),
+                "profit": str(profit),
+                "margin_pct": f"{margin:.2f}",
+            }
+        ]
+        exported = maybe_export_response(
+            request,
+            title="Resumen Financiero",
+            rows=rows,
+            pdf_filename="reporte_resumen_financiero.pdf",
+            xlsx_filename="reporte_resumen_financiero.xlsx",
+        )
+        return exported or Response(rows[0])
 
 
 class SalesByCashierReportView(APIView):

@@ -51,6 +51,7 @@ def test_cancel_sale_restores_inventory(supervisor, cajero):
     )
 
     bar_stock = InventoryStock.objects.get(location=bar_location, product=product)
+    cash_session.refresh_from_db()
     assert bar_stock.quantity == Decimal("8")
     assert cash_session.expected_amount == Decimal("10.00")
 

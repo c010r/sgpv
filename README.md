@@ -47,6 +47,9 @@ API para centros nocturnos con:
 - Ventas por barra: `/api/reportes/ventas-por-barra/`
 - Ventas por cajero: `/api/reportes/ventas-por-cajero/`
 - Cierres de caja: `/api/reportes/cierres-caja/`
+- Utilidad por producto: `/api/reportes/utilidad-por-producto/`
+- Utilidad por receta: `/api/reportes/utilidad-por-receta/`
+- Resumen financiero: `/api/reportes/resumen-financiero/`
 - Top productos: `/api/reportes/top-productos/`
 - Movimientos inventario: `/api/reportes/movimientos-inventario/`
 
@@ -84,6 +87,9 @@ Ejemplo:
 - Import CSV con jobs persistidos: `POST /api/listas-invitados/<id>/import_csv/` y `GET /api/listas-invitados/<id>/import_jobs/`.
 - Costeo configurable (`AVG`/`FIFO`) en configuracion del sistema.
 - Utilidad real por venta (`cost_total`, `gross_profit`) y por item (`line_cost_total`, `line_profit`).
+
+## Permisos
+- Matriz RBAC documentada en `docs/permissions_matrix.md`.
 
 ## Deploy Tradicional
 - Guia completa: `deploy/README.md`

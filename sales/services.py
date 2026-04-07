@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import Sum
 from django.utils import timezone
 
@@ -47,8 +47,12 @@ def close_cash_session(*, session: CashSession, closing_amount: Decimal, user):
 
 @transaction.atomic
 def create_sale(*, bar_session, cash_session, items, payments, user, discount_amount=Decimal("0"), surcharge_amount=Decimal("0"), idempotency_key=None):
+    # Lock sessions to avoid concurrent writes on expected_amount/stock flow.
+    bar_session = bar_session.__class__.objects.select_for_update().get(pk=bar_session.pk)
+    cash_session = cash_session.__class__.objects.select_for_update().get(pk=cash_session.pk)
+
     if idempotency_key:
-        existing = Sale.objects.filter(idempotency_key=idempotency_key).first()
+        existing = Sale.objects.select_for_update().filter(idempotency_key=idempotency_key).first()
         if existing:
             return existing, False
 
@@ -61,14 +65,21 @@ def create_sale(*, bar_session, cash_session, items, payments, user, discount_am
     if not bar_location:
         raise ValidationError("La barra no tiene inventario configurado")
 
-    sale = Sale.objects.create(
-        bar_session=bar_session,
-        cash_session=cash_session,
-        created_by=user,
-        idempotency_key=idempotency_key,
-        discount_amount=discount_amount,
-        surcharge_amount=surcharge_amount,
-    )
+    try:
+        sale = Sale.objects.create(
+            bar_session=bar_session,
+            cash_session=cash_session,
+            created_by=user,
+            idempotency_key=idempotency_key,
+            discount_amount=discount_amount,
+            surcharge_amount=surcharge_amount,
+        )
+    except IntegrityError:
+        if idempotency_key:
+            existing = Sale.objects.filter(idempotency_key=idempotency_key).first()
+            if existing:
+                return existing, False
+        raise
 
     subtotal = Decimal("0")
     cost_total = Decimal("0")
