@@ -30,13 +30,16 @@ def apply_sale_filters(queryset, request):
     from_date = request.query_params.get("from")
     to_date = request.query_params.get("to")
     bar_id = request.query_params.get("bar_id")
+    # SaleItem reports are filtered through their related sale fields.
+    date_prefix = "sale__" if queryset.model is SaleItem else ""
+    bar_prefix = "sale__" if queryset.model is SaleItem else ""
 
     if from_date:
-        queryset = queryset.filter(created_at__date__gte=from_date)
+        queryset = queryset.filter(**{f"{date_prefix}created_at__date__gte": from_date})
     if to_date:
-        queryset = queryset.filter(created_at__date__lte=to_date)
+        queryset = queryset.filter(**{f"{date_prefix}created_at__date__lte": to_date})
     if bar_id:
-        queryset = queryset.filter(bar_session__bar_id=bar_id)
+        queryset = queryset.filter(**{f"{bar_prefix}bar_session__bar_id": bar_id})
     return queryset
 
 
@@ -516,5 +519,8 @@ class AlertEventsReportView(APIView):
     def post(self, request):
         threshold = request.data.get("low_stock_threshold", 10)
         diff_threshold = request.data.get("cash_diff_threshold", 0)
+        if request.data.get("sync"):
+            alert_ids = scan_and_dispatch_alerts(threshold, diff_threshold)
+            return Response({"detail": "Scan ejecutado", "alert_ids": alert_ids}, status=status.HTTP_200_OK)
         task = scan_and_dispatch_alerts.delay(threshold, diff_threshold)
         return Response({"detail": "Scan de alertas solicitado", "task_id": task.id}, status=status.HTTP_202_ACCEPTED)
