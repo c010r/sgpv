@@ -78,6 +78,13 @@ Post-deploy checklist:
 - verificar logs `journalctl -u sgpv-gunicorn -n 100 --no-pager`
 - ejecutar `pytest -q` en staging antes de prod
 
+Monitoreo diario automatizado:
+
+```bash
+chmod +x scripts/ops_daily_check.sh
+DOMAIN=api.tudominio.com APP_DIR=/opt/sgpv BACKUP_DIR=/var/backups/sgpv /opt/sgpv/scripts/ops_daily_check.sh
+```
+
 ## 6. Backups
 
 Programar `scripts/backup.sh` con cron (ejemplo diario 03:30):
