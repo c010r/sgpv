@@ -88,6 +88,90 @@ def test_supervisor_can_scan_alerts_sync(supervisor):
 
 
 @pytest.mark.django_db
+def test_alert_scan_deduplicates_in_window(supervisor, settings):
+    settings.ALERT_DEDUP_WINDOW_MINUTES = 60
+
+    bar = Bar.objects.create(name="Bar Dedup")
+    location = InventoryLocation.objects.create(
+        name="Inventario Bar Dedup",
+        location_type=InventoryLocation.LocationType.BAR,
+        bar=bar,
+    )
+    product = Product.objects.create(
+        name="Vodka Dedup",
+        sku="VODKA-DEDUP-001",
+        unit=Product.Unit.UNIT,
+        sale_price=Decimal("12.00"),
+        cost_price=Decimal("4.00"),
+    )
+    InventoryStock.objects.create(location=location, product=product, quantity=Decimal("1.000"))
+
+    client = APIClient()
+    client.force_authenticate(user=supervisor)
+    first = client.post(
+        "/api/reportes/alertas/",
+        {"sync": True, "low_stock_threshold": 2, "cash_diff_threshold": 999},
+        format="json",
+    )
+    second = client.post(
+        "/api/reportes/alertas/",
+        {"sync": True, "low_stock_threshold": 2, "cash_diff_threshold": 999},
+        format="json",
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert len(first.data["alert_ids"]) == 1
+    assert len(second.data["alert_ids"]) == 0
+
+    list_resp = client.get("/api/reportes/alertas/")
+    assert list_resp.status_code == 200
+    low_stock = [row for row in list_resp.data if row["alert_type"] == "LOW_STOCK"]
+    assert len(low_stock) == 1
+    assert low_stock[0]["occurrence_count"] == 2
+
+
+@pytest.mark.django_db
+def test_supervisor_can_resolve_alert_and_view_summary(supervisor):
+    bar = Bar.objects.create(name="Bar Resolve")
+    location = InventoryLocation.objects.create(
+        name="Inventario Bar Resolve",
+        location_type=InventoryLocation.LocationType.BAR,
+        bar=bar,
+    )
+    product = Product.objects.create(
+        name="Ron Resolve",
+        sku="RON-RESOLVE-001",
+        unit=Product.Unit.UNIT,
+        sale_price=Decimal("8.00"),
+        cost_price=Decimal("2.50"),
+    )
+    InventoryStock.objects.create(location=location, product=product, quantity=Decimal("0.000"))
+
+    client = APIClient()
+    client.force_authenticate(user=supervisor)
+    scan_resp = client.post(
+        "/api/reportes/alertas/",
+        {"sync": True, "low_stock_threshold": 1, "cash_diff_threshold": 999},
+        format="json",
+    )
+    assert scan_resp.status_code == 200
+    alert_id = scan_resp.data["alert_ids"][0]
+
+    resolve_resp = client.post(f"/api/reportes/alertas/{alert_id}/resolve/", {}, format="json")
+    assert resolve_resp.status_code == 200
+    assert resolve_resp.data["status"] == "RESOLVED"
+
+    summary_resp = client.get("/api/reportes/alertas/resumen/")
+    assert summary_resp.status_code == 200
+    payload = summary_resp.data
+    assert payload["summary"]["total"] >= 1
+    assert payload["summary"]["resolved_total"] >= 1
+    assert "dedup" in payload
+    assert payload["dedup"]["raw_occurrences"] >= payload["dedup"]["stored_rows"]
+
+
+@pytest.mark.django_db
 def test_cajero_cannot_access_snapshots_and_alerts(cajero):
     client = APIClient()
     client.force_authenticate(user=cajero)
@@ -97,3 +181,6 @@ def test_cajero_cannot_access_snapshots_and_alerts(cajero):
 
     alerts_resp = client.get("/api/reportes/alertas/")
     assert alerts_resp.status_code == 403
+
+    summary_resp = client.get("/api/reportes/alertas/resumen/")
+    assert summary_resp.status_code == 403

@@ -37,6 +37,8 @@ class AlertEvent(TimeStampedModel):
     severity = models.CharField(max_length=10, choices=Severity.choices, default=Severity.MEDIUM)
     status = models.CharField(max_length=10, choices=Status.choices, default=Status.OPEN)
     message = models.CharField(max_length=255)
+    dedup_key = models.CharField(max_length=120, blank=True, db_index=True)
+    occurrence_count = models.PositiveIntegerField(default=1)
     payload = models.JSONField(default=dict, blank=True)
     sent_via = models.CharField(max_length=20, blank=True)
     sent_at = models.DateTimeField(null=True, blank=True)

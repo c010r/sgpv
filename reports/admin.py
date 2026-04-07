@@ -13,7 +13,7 @@ class DailyFinancialSnapshotAdmin(admin.ModelAdmin):
 
 @admin.register(AlertEvent)
 class AlertEventAdmin(admin.ModelAdmin):
-    list_display = ("id", "created_at", "alert_type", "severity", "status", "sent_via", "sent_at")
+    list_display = ("id", "created_at", "alert_type", "severity", "status", "occurrence_count", "sent_via", "sent_at")
     list_filter = ("alert_type", "severity", "status", "sent_via")
-    search_fields = ("message",)
+    search_fields = ("message", "dedup_key")
     ordering = ("-created_at",)

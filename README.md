@@ -52,6 +52,8 @@ API para centros nocturnos con:
 - Resumen financiero: `/api/reportes/resumen-financiero/`
 - Snapshots financieros (GET/POST): `/api/reportes/snapshots/`
 - Alertas operativas (GET/POST): `/api/reportes/alertas/`
+- Resumen alertas: `/api/reportes/alertas/resumen/`
+- Resolver alerta: `POST /api/reportes/alertas/<id>/resolve/`
 - Top productos: `/api/reportes/top-productos/`
 - Movimientos inventario: `/api/reportes/movimientos-inventario/`
 
@@ -91,6 +93,7 @@ Ejemplo:
 - Utilidad real por venta (`cost_total`, `gross_profit`) y por item (`line_cost_total`, `line_profit`).
 - Snapshot financiero diario por task (`create_daily_financial_snapshot`) o forzado por API.
 - Escaneo de alertas de stock critico y diferencias de caja (`scan_and_dispatch_alerts`).
+- Deduplicacion de alertas por ventana temporal configurable (`ALERT_DEDUP_WINDOW_MINUTES`).
 
 ## Permisos
 - Matriz RBAC documentada en `docs/permissions_matrix.md`.

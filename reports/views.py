@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from django.db.models import Count, Sum
+from django.db.models import Count, Q, Sum
 from django.db.models.functions import TruncDate, TruncHour
 from django.utils import timezone
 from rest_framework import status
@@ -509,6 +509,8 @@ class AlertEventsReportView(APIView):
                     "severity": alert.severity,
                     "status": alert.status,
                     "message": alert.message,
+                    "dedup_key": alert.dedup_key,
+                    "occurrence_count": alert.occurrence_count,
                     "sent_via": alert.sent_via,
                     "sent_at": alert.sent_at.isoformat() if alert.sent_at else None,
                     "payload": alert.payload,
@@ -524,3 +526,57 @@ class AlertEventsReportView(APIView):
             return Response({"detail": "Scan ejecutado", "alert_ids": alert_ids}, status=status.HTTP_200_OK)
         task = scan_and_dispatch_alerts.delay(threshold, diff_threshold)
         return Response({"detail": "Scan de alertas solicitado", "task_id": task.id}, status=status.HTTP_202_ACCEPTED)
+
+
+class AlertResolveView(APIView):
+    permission_classes = [IsSupervisorOrAbove]
+
+    def post(self, request, alert_id):
+        try:
+            alert = AlertEvent.objects.get(id=alert_id)
+        except AlertEvent.DoesNotExist:
+            return Response({"detail": "Alerta no encontrada"}, status=status.HTTP_404_NOT_FOUND)
+        alert.status = AlertEvent.Status.RESOLVED
+        alert.save(update_fields=["status", "updated_at"])
+        return Response({"detail": "Alerta resuelta", "id": alert.id, "status": alert.status})
+
+
+class AlertSummaryReportView(APIView):
+    permission_classes = [IsSupervisorOrAbove]
+
+    def get(self, request):
+        now = timezone.now()
+        last_24h = now - timedelta(hours=24)
+        base = AlertEvent.objects.all()
+
+        summary = {
+            "total": base.count(),
+            "open_total": base.filter(status=AlertEvent.Status.OPEN).count(),
+            "sent_total": base.filter(status=AlertEvent.Status.SENT).count(),
+            "resolved_total": base.filter(status=AlertEvent.Status.RESOLVED).count(),
+            "last_24h_total": base.filter(created_at__gte=last_24h).count(),
+        }
+        by_type = list(base.values("alert_type").annotate(total=Count("id")).order_by("-total"))
+        by_severity = list(base.values("severity").annotate(total=Count("id")).order_by("-total"))
+
+        dedup_effect = base.aggregate(
+            raw_occurrences=Sum("occurrence_count"),
+            rows=Count("id"),
+            open_occurrences=Sum("occurrence_count", filter=Q(status=AlertEvent.Status.OPEN)),
+        )
+        raw_occurrences = dedup_effect["raw_occurrences"] or 0
+        rows = dedup_effect["rows"] or 0
+
+        return Response(
+            {
+                "summary": summary,
+                "by_type": by_type,
+                "by_severity": by_severity,
+                "dedup": {
+                    "raw_occurrences": raw_occurrences,
+                    "stored_rows": rows,
+                    "dedup_saved": max(raw_occurrences - rows, 0),
+                    "open_occurrences": dedup_effect["open_occurrences"] or 0,
+                },
+            }
+        )
