@@ -50,6 +50,8 @@ API para centros nocturnos con:
 - Utilidad por producto: `/api/reportes/utilidad-por-producto/`
 - Utilidad por receta: `/api/reportes/utilidad-por-receta/`
 - Resumen financiero: `/api/reportes/resumen-financiero/`
+- Snapshots financieros (GET/POST): `/api/reportes/snapshots/`
+- Alertas operativas (GET/POST): `/api/reportes/alertas/`
 - Top productos: `/api/reportes/top-productos/`
 - Movimientos inventario: `/api/reportes/movimientos-inventario/`
 
@@ -87,6 +89,8 @@ Ejemplo:
 - Import CSV con jobs persistidos: `POST /api/listas-invitados/<id>/import_csv/` y `GET /api/listas-invitados/<id>/import_jobs/`.
 - Costeo configurable (`AVG`/`FIFO`) en configuracion del sistema.
 - Utilidad real por venta (`cost_total`, `gross_profit`) y por item (`line_cost_total`, `line_profit`).
+- Snapshot financiero diario por task (`create_daily_financial_snapshot`) o forzado por API.
+- Escaneo de alertas de stock critico y diferencias de caja (`scan_and_dispatch_alerts`).
 
 ## Permisos
 - Matriz RBAC documentada en `docs/permissions_matrix.md`.

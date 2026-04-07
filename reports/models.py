@@ -1,3 +1,45 @@
 from django.db import models
 
-# Create your models here.
+from core.models import TimeStampedModel
+
+
+class DailyFinancialSnapshot(TimeStampedModel):
+    snapshot_date = models.DateField(unique=True)
+    tickets = models.PositiveIntegerField(default=0)
+    subtotal = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    discounts = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    surcharges = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    revenue = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    cost = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    profit = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    margin_pct = models.DecimalField(max_digits=8, decimal_places=2, default=0)
+
+    class Meta:
+        ordering = ["-snapshot_date"]
+
+
+class AlertEvent(TimeStampedModel):
+    class AlertType(models.TextChoices):
+        LOW_STOCK = "LOW_STOCK", "Stock critico"
+        CASH_DIFFERENCE = "CASH_DIFFERENCE", "Diferencia de caja"
+
+    class Severity(models.TextChoices):
+        LOW = "LOW", "Baja"
+        MEDIUM = "MEDIUM", "Media"
+        HIGH = "HIGH", "Alta"
+
+    class Status(models.TextChoices):
+        OPEN = "OPEN", "Abierta"
+        SENT = "SENT", "Enviada"
+        RESOLVED = "RESOLVED", "Resuelta"
+
+    alert_type = models.CharField(max_length=20, choices=AlertType.choices)
+    severity = models.CharField(max_length=10, choices=Severity.choices, default=Severity.MEDIUM)
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.OPEN)
+    message = models.CharField(max_length=255)
+    payload = models.JSONField(default=dict, blank=True)
+    sent_via = models.CharField(max_length=20, blank=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]

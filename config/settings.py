@@ -2,6 +2,7 @@ from datetime import timedelta
 from pathlib import Path
 import os
 
+from celery.schedules import crontab
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -166,6 +167,26 @@ else:
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", REDIS_URL)
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", REDIS_URL)
 CELERY_TASK_ALWAYS_EAGER = os.getenv("CELERY_TASK_ALWAYS_EAGER", "0") == "1"
+CELERY_TIMEZONE = TIME_ZONE
+
+ALERT_WEBHOOK_URL = os.getenv("ALERT_WEBHOOK_URL", "")
+ALERT_EMAIL_TO = os.getenv("ALERT_EMAIL_TO", "")
+ALERT_LOW_STOCK_THRESHOLD = int(os.getenv("ALERT_LOW_STOCK_THRESHOLD", "10"))
+ALERT_CASH_DIFF_THRESHOLD = float(os.getenv("ALERT_CASH_DIFF_THRESHOLD", "0"))
+
+ENABLE_PERIODIC_TASKS = os.getenv("ENABLE_PERIODIC_TASKS", "1") == "1"
+if ENABLE_PERIODIC_TASKS:
+    CELERY_BEAT_SCHEDULE = {
+        "reports-snapshot-daily": {
+            "task": "reports.tasks.create_daily_financial_snapshot",
+            "schedule": crontab(hour=6, minute=5),
+        },
+        "reports-alert-scan-every-5-min": {
+            "task": "reports.tasks.scan_and_dispatch_alerts",
+            "schedule": crontab(minute="*/5"),
+            "args": (ALERT_LOW_STOCK_THRESHOLD, ALERT_CASH_DIFF_THRESHOLD),
+        },
+    }
 
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 LOGGING = {
