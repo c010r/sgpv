@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SGPV Frontend</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <h1>SGPV</h1>
+        <p class="subtitle">Panel Operativo</p>
+
+        <label class="small-label" for="baseUrl">API Base URL</label>
+        <input id="baseUrl" type="text" value="http://127.0.0.1:8000" />
+
+        <div class="auth-box">
+          <input id="username" type="text" placeholder="usuario" />
+          <input id="password" type="password" placeholder="clave" />
+          <button id="loginBtn" class="primary">Entrar</button>
+          <button id="logoutBtn" class="ghost">Salir</button>
+          <small id="authStatus">No autenticado</small>
+        </div>
+
+        <nav id="menu" class="menu">
+          <button data-tab="dashboard" class="active">Dashboard</button>
+          <button data-tab="ventas">Caja y Ventas</button>
+          <button data-tab="inventario">Inventario</button>
+          <button data-tab="invitados">Invitados</button>
+          <button data-tab="reportes">Reportes</button>
+          <button data-tab="config">Configuración</button>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <section id="dashboard" class="tab active">
+          <h2>Dashboard en Tiempo Real</h2>
+          <div class="cards" id="dashCards"></div>
+          <div class="panel">
+            <h3>Ventas últimas 24h</h3>
+            <div id="hourlyList"></div>
+          </div>
+          <div class="panel">
+            <h3>Stock crítico por barra</h3>
+            <div id="criticalStock"></div>
+          </div>
+        </section>
+
+        <section id="ventas" class="tab">
+          <h2>Caja y Ventas</h2>
+          <div class="grid-two">
+            <div class="panel">
+              <h3>Crear Venta</h3>
+              <p class="hint">Formato simple: 1 item + 1 pago.</p>
+              <input id="saleBarSession" type="number" placeholder="bar_session_id" />
+              <input id="saleCashSession" type="number" placeholder="cash_session_id" />
+              <input id="saleProduct" type="number" placeholder="product_id" />
+              <input id="saleQty" type="number" step="0.001" placeholder="cantidad" />
+              <input id="saleUnitPrice" type="number" step="0.01" placeholder="precio unitario" />
+              <select id="salePayMethod">
+                <option value="CASH">CASH</option>
+                <option value="CARD">CARD</option>
+                <option value="TRANSFER">TRANSFER</option>
+              </select>
+              <input id="salePayAmount" type="number" step="0.01" placeholder="monto pago" />
+              <button id="createSaleBtn" class="primary">Crear venta</button>
+              <pre id="saleCreateResult"></pre>
+            </div>
+            <div class="panel">
+              <h3>Ventas</h3>
+              <button id="loadSalesBtn">Refrescar ventas</button>
+              <div id="salesTable"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="inventario" class="tab">
+          <h2>Inventario</h2>
+          <div class="grid-two">
+            <div class="panel">
+              <h3>Stocks</h3>
+              <button id="loadStocksBtn">Refrescar stocks</button>
+              <div id="stocksTable"></div>
+            </div>
+            <div class="panel">
+              <h3>Movimientos</h3>
+              <button id="loadMovesBtn">Refrescar movimientos</button>
+              <div id="movesTable"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="invitados" class="tab">
+          <h2>Invitados</h2>
+          <div class="grid-two">
+            <div class="panel">
+              <h3>Check-in QR</h3>
+              <input id="checkinQr" type="text" placeholder="qr_code" />
+              <input id="checkinCompanions" type="number" value="0" placeholder="acompañantes" />
+              <button id="checkinBtn" class="primary">Registrar check-in</button>
+              <pre id="checkinResult"></pre>
+            </div>
+            <div class="panel">
+              <h3>Entradas de invitados</h3>
+              <button id="loadGuestsBtn">Refrescar invitados</button>
+              <div id="guestsTable"></div>
+            </div>
+          </div>
+        </section>
+
+        <section id="reportes" class="tab">
+          <h2>Reportes</h2>
+          <div class="grid-two">
+            <div class="panel">
+              <h3>Alertas</h3>
+              <button id="loadAlertsBtn">Refrescar alertas</button>
+              <div id="alertsTable"></div>
+            </div>
+            <div class="panel">
+              <h3>Resumen financiero</h3>
+              <button id="loadFinancialBtn">Cargar resumen</button>
+              <pre id="financialSummary"></pre>
+            </div>
+          </div>
+        </section>
+
+        <section id="config" class="tab">
+          <h2>Configuración del Sistema</h2>
+          <div class="panel">
+            <input id="cfgCountry" type="text" placeholder="country_code (UY)" />
+            <input id="cfgCurrency" type="text" placeholder="currency_code (USD)" />
+            <input id="cfgTimezone" type="text" placeholder="timezone (America/Montevideo)" />
+            <select id="cfgCosting">
+              <option value="AVG">AVG</option>
+              <option value="FIFO">FIFO</option>
+            </select>
+            <button id="loadCfgBtn">Cargar</button>
+            <button id="saveCfgBtn" class="primary">Guardar</button>
+            <pre id="cfgResult"></pre>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast"></div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

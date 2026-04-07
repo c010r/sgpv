@@ -122,3 +122,24 @@ Ejemplo:
 ## Documentacion API
 - OpenAPI: `/api/schema/`
 - Swagger UI: `/api/docs/`
+
+## Frontend (Panel Web)
+- Ubicacion: `frontend/`
+- Archivo principal: `frontend/index.html`
+- JS app: `frontend/app.js`
+- Estilos: `frontend/styles.css`
+
+Levantar frontend local (sin build):
+
+```bash
+cd frontend
+python3 -m http.server 5173
+```
+
+Abrir:
+- `http://127.0.0.1:5173`
+
+Notas:
+- En el panel puedes definir `API Base URL` (por defecto `http://127.0.0.1:8000`).
+- Login con JWT usando tus usuarios (`admin`, `supervisor`, `cajero`).
+- Modulos incluidos: dashboard, ventas, inventario, invitados, reportes y configuracion.
