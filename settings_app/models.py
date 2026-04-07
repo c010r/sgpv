@@ -4,9 +4,14 @@ from core.models import TimeStampedModel
 
 
 class SystemConfiguration(TimeStampedModel):
+    class CostingMethod(models.TextChoices):
+        AVG = "AVG", "Promedio"
+        FIFO = "FIFO", "FIFO"
+
     country_code = models.CharField(max_length=3, default="UY")
     currency_code = models.CharField(max_length=3, default="USD")
     timezone = models.CharField(max_length=64, default="America/Montevideo")
+    costing_method = models.CharField(max_length=10, choices=CostingMethod.choices, default=CostingMethod.AVG)
 
     def __str__(self):
         return f"{self.country_code} - {self.currency_code}"

@@ -18,6 +18,8 @@ class AuditLog(TimeStampedModel):
         ("CLOSE_BAR", "Close Bar"),
         ("OPEN_CASH", "Open Cash"),
         ("CLOSE_CASH", "Close Cash"),
+        ("APPROVE_CASH_CLOSE", "Approve Cash Close"),
+        ("REOPEN_CASH", "Reopen Cash"),
         ("CANCEL_SALE", "Cancel Sale"),
         ("INVENTORY_ADJUSTMENT", "Inventory Adjustment"),
         ("LOGIN", "Login"),

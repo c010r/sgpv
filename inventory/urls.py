@@ -7,6 +7,7 @@ from inventory.views import (
     InventoryStockViewSet,
     ProductViewSet,
     RecipeViewSet,
+    StockCountViewSet,
 )
 
 router = DefaultRouter()
@@ -16,5 +17,6 @@ router.register("inventario/ubicaciones", InventoryLocationViewSet, basename="in
 router.register("inventario/stocks", InventoryStockViewSet, basename="inventario-stocks")
 router.register("inventario/movimientos", InventoryMovementViewSet, basename="inventario-movimientos")
 router.register("inventario/setup", InventorySetupViewSet, basename="inventario-setup")
+router.register("inventario/conteos", StockCountViewSet, basename="inventario-conteos")
 
 urlpatterns = router.urls

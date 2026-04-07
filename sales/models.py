@@ -15,6 +15,12 @@ class CashRegister(TimeStampedModel):
 
 
 class CashSession(TimeStampedModel):
+    class CloseStatus(models.TextChoices):
+        OPEN = "OPEN", "Abierta"
+        PENDING_APPROVAL = "PENDING_APPROVAL", "Pendiente Aprobacion"
+        CLOSED = "CLOSED", "Cerrada"
+        REOPENED = "REOPENED", "Reabierta"
+
     register = models.ForeignKey(CashRegister, on_delete=models.PROTECT, related_name="sessions")
     opened_by = models.ForeignKey("users.User", on_delete=models.PROTECT, related_name="opened_cash_sessions")
     closed_by = models.ForeignKey(
@@ -23,6 +29,20 @@ class CashSession(TimeStampedModel):
     opening_amount = models.DecimalField(max_digits=12, decimal_places=2)
     expected_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
     closing_amount = models.DecimalField(max_digits=12, decimal_places=2, null=True, blank=True)
+    expected_breakdown = models.JSONField(default=dict, blank=True)
+    closing_breakdown = models.JSONField(default=dict, blank=True)
+    difference_breakdown = models.JSONField(default=dict, blank=True)
+    difference_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    close_status = models.CharField(max_length=20, choices=CloseStatus.choices, default=CloseStatus.OPEN)
+    approved_by = models.ForeignKey(
+        "users.User", null=True, blank=True, on_delete=models.PROTECT, related_name="approved_cash_sessions"
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    reopened_by = models.ForeignKey(
+        "users.User", null=True, blank=True, on_delete=models.PROTECT, related_name="reopened_cash_sessions"
+    )
+    reopened_at = models.DateTimeField(null=True, blank=True)
+    reopen_reason = models.CharField(max_length=255, blank=True)
     is_open = models.BooleanField(default=True)
     opened_at = models.DateTimeField(auto_now_add=True)
     closed_at = models.DateTimeField(null=True, blank=True)
@@ -46,8 +66,14 @@ class Sale(TimeStampedModel):
     canceled_by = models.ForeignKey(
         "users.User", null=True, blank=True, on_delete=models.PROTECT, related_name="canceled_sales"
     )
+    idempotency_key = models.CharField(max_length=100, unique=True, null=True, blank=True)
     status = models.CharField(max_length=12, choices=Status.choices, default=Status.COMPLETED)
     cancel_reason = models.CharField(max_length=255, blank=True)
+    subtotal = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    discount_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    surcharge_amount = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    cost_total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    gross_profit = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
     total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
 
 
@@ -56,6 +82,9 @@ class SaleItem(TimeStampedModel):
     product = models.ForeignKey("inventory.Product", on_delete=models.PROTECT, related_name="sale_items")
     quantity = models.DecimalField(max_digits=14, decimal_places=3)
     unit_price = models.DecimalField(max_digits=12, decimal_places=2)
+    unit_cost = models.DecimalField(max_digits=12, decimal_places=4, default=Decimal("0"))
+    line_cost_total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
+    line_profit = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0"))
     line_total = models.DecimalField(max_digits=12, decimal_places=2)
 
 

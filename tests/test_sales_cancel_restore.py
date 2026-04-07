@@ -42,7 +42,7 @@ def test_cancel_sale_restores_inventory(supervisor, cajero):
     register = CashRegister.objects.create(name="Caja Test", bar=bar)
     cash_session = open_cash_session(register=register, opening_amount=Decimal("100"), user=cajero)
 
-    sale = create_sale(
+    sale, _ = create_sale(
         bar_session=bar_session,
         cash_session=cash_session,
         items=[{"product": product, "quantity": Decimal("2"), "unit_price": Decimal("5.00")}],

@@ -41,3 +41,24 @@ class GuestEntry(TimeStampedModel):
 
     def __str__(self):
         return f"{self.full_name} ({self.guest_list})"
+
+
+class GuestImportJob(TimeStampedModel):
+    class Status(models.TextChoices):
+        PREVIEWED = "PREVIEWED", "Previsualizado"
+        IMPORTED = "IMPORTED", "Importado"
+        FAILED = "FAILED", "Fallido"
+
+    guest_list = models.ForeignKey(GuestList, on_delete=models.CASCADE, related_name="import_jobs")
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.PREVIEWED)
+    total_rows = models.PositiveIntegerField(default=0)
+    created_rows = models.PositiveIntegerField(default=0)
+    error_rows = models.PositiveIntegerField(default=0)
+    imported_by = models.ForeignKey("users.User", on_delete=models.PROTECT, related_name="guest_import_jobs")
+
+
+class GuestImportJobError(TimeStampedModel):
+    job = models.ForeignKey(GuestImportJob, on_delete=models.CASCADE, related_name="errors")
+    line_number = models.PositiveIntegerField()
+    message = models.CharField(max_length=255)
+    raw_data = models.JSONField(default=dict, blank=True)

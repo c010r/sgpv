@@ -107,6 +107,63 @@ class InventoryMovementsReportView(APIView):
         return exported or Response(rows)
 
 
+class SalesByCashierReportView(APIView):
+    permission_classes = [IsSupervisorOrAbove]
+
+    def get(self, request):
+        queryset = (
+            Sale.objects.filter(status=Sale.Status.COMPLETED)
+            .values("created_by__id", "created_by__username")
+            .annotate(total_sales=Sum("total"), total_tickets=Count("id"))
+            .order_by("-total_sales")
+        )
+        rows = list(queryset)
+        exported = maybe_export_response(
+            request,
+            title="Ventas por Cajero",
+            rows=rows,
+            pdf_filename="reporte_ventas_por_cajero.pdf",
+            xlsx_filename="reporte_ventas_por_cajero.xlsx",
+        )
+        return exported or Response(rows)
+
+
+class CashSessionCloseReportView(APIView):
+    permission_classes = [IsSupervisorOrAbove]
+
+    def get(self, request):
+        queryset = (
+            CashSession.objects.select_related("register", "opened_by", "closed_by", "approved_by")
+            .all()
+            .order_by("-id")
+        )
+        rows = []
+        for session in queryset:
+            rows.append(
+                {
+                    "id": session.id,
+                    "register": session.register.name,
+                    "opened_by": session.opened_by.username,
+                    "closed_by": session.closed_by.username if session.closed_by else None,
+                    "close_status": session.close_status,
+                    "expected_amount": str(session.expected_amount),
+                    "closing_amount": str(session.closing_amount or 0),
+                    "difference_amount": str(session.difference_amount),
+                    "approved_by": session.approved_by.username if session.approved_by else None,
+                    "opened_at": session.opened_at.isoformat() if session.opened_at else None,
+                    "closed_at": session.closed_at.isoformat() if session.closed_at else None,
+                }
+            )
+        exported = maybe_export_response(
+            request,
+            title="Cierres de Caja",
+            rows=rows,
+            pdf_filename="reporte_cierres_caja.pdf",
+            xlsx_filename="reporte_cierres_caja.xlsx",
+        )
+        return exported or Response(rows)
+
+
 class DashboardReportView(APIView):
     permission_classes = [IsSupervisorOrAbove]
 
@@ -200,3 +257,53 @@ class DashboardReportView(APIView):
             "critical_stock_by_bar": list(grouped.values()),
         }
         return Response(payload)
+
+
+class KardexReportView(APIView):
+    permission_classes = [IsSupervisorOrAbove]
+
+    def get(self, request):
+        product_id = request.query_params.get("product_id")
+        location_id = request.query_params.get("location_id")
+        if not product_id:
+            return Response({"detail": "product_id es requerido"}, status=400)
+
+        queryset = InventoryMovement.objects.filter(product_id=product_id).select_related("source", "destination", "created_by")
+        if location_id:
+            queryset = queryset.filter(source_id=location_id) | queryset.filter(destination_id=location_id)
+        queryset = queryset.order_by("created_at", "id")
+
+        running_delta = 0
+        rows = []
+        for move in queryset:
+            incoming = move.destination_id is not None and (not location_id or str(move.destination_id) == str(location_id))
+            outgoing = move.source_id is not None and (not location_id or str(move.source_id) == str(location_id))
+            delta = 0
+            if incoming and not outgoing:
+                delta = float(move.quantity)
+            elif outgoing and not incoming:
+                delta = -float(move.quantity)
+            running_delta += delta
+            rows.append(
+                {
+                    "id": move.id,
+                    "created_at": move.created_at.isoformat(),
+                    "movement_type": move.movement_type,
+                    "quantity": str(move.quantity),
+                    "delta": str(delta),
+                    "running_delta": str(running_delta),
+                    "source": move.source.name if move.source else None,
+                    "destination": move.destination.name if move.destination else None,
+                    "reason": move.reason,
+                    "created_by": move.created_by.username,
+                }
+            )
+
+        exported = maybe_export_response(
+            request,
+            title="Kardex",
+            rows=rows,
+            pdf_filename="kardex.pdf",
+            xlsx_filename="kardex.xlsx",
+        )
+        return exported or Response(rows)

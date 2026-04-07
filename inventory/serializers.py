@@ -1,6 +1,8 @@
 from rest_framework import serializers
 
 from inventory.models import (
+    StockCountItem,
+    StockCountSession,
     InventoryLocation,
     InventoryMovement,
     InventoryStock,
@@ -86,8 +88,65 @@ class TransferStockSerializer(serializers.Serializer):
     reason = serializers.CharField(required=False, allow_blank=True)
 
 
+class BulkTransferItemSerializer(serializers.Serializer):
+    product_id = serializers.IntegerField()
+    quantity = serializers.DecimalField(max_digits=14, decimal_places=3)
+
+
+class BulkTransferStockSerializer(serializers.Serializer):
+    source_id = serializers.IntegerField()
+    destination_id = serializers.IntegerField()
+    reason = serializers.CharField(required=False, allow_blank=True)
+    items = BulkTransferItemSerializer(many=True)
+
+
 class AdjustStockSerializer(serializers.Serializer):
     location_id = serializers.IntegerField()
     product_id = serializers.IntegerField()
     quantity_delta = serializers.DecimalField(max_digits=14, decimal_places=3)
     reason = serializers.CharField(required=False, allow_blank=True)
+
+
+class StockCountSessionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StockCountSession
+        fields = [
+            "id",
+            "location",
+            "status",
+            "notes",
+            "created_by",
+            "closed_by",
+            "applied_by",
+            "closed_at",
+            "applied_at",
+            "created_at",
+        ]
+
+
+class StockCountItemSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source="product.name", read_only=True)
+
+    class Meta:
+        model = StockCountItem
+        fields = [
+            "id",
+            "session",
+            "product",
+            "product_name",
+            "expected_quantity",
+            "counted_quantity",
+            "difference_quantity",
+        ]
+
+
+class StartStockCountSerializer(serializers.Serializer):
+    location_id = serializers.IntegerField()
+    notes = serializers.CharField(required=False, allow_blank=True)
+
+
+class CloseStockCountSerializer(serializers.Serializer):
+    counted = serializers.DictField(
+        child=serializers.DecimalField(max_digits=14, decimal_places=3),
+        help_text="Mapa product_id -> counted_quantity",
+    )

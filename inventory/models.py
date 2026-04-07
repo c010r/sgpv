@@ -56,6 +56,51 @@ class InventoryStock(TimeStampedModel):
         return f"{self.location} - {self.product}: {self.quantity}"
 
 
+class InventoryBatch(TimeStampedModel):
+    location = models.ForeignKey(InventoryLocation, on_delete=models.CASCADE, related_name="batches")
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="batches")
+    unit_cost = models.DecimalField(max_digits=12, decimal_places=4)
+    initial_quantity = models.DecimalField(max_digits=14, decimal_places=3)
+    remaining_quantity = models.DecimalField(max_digits=14, decimal_places=3)
+    source_movement = models.ForeignKey(
+        "InventoryMovement", null=True, blank=True, on_delete=models.SET_NULL, related_name="created_batches"
+    )
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+
+class StockCountSession(TimeStampedModel):
+    class Status(models.TextChoices):
+        OPEN = "OPEN", "Abierto"
+        CLOSED = "CLOSED", "Cerrado"
+        APPLIED = "APPLIED", "Aplicado"
+
+    location = models.ForeignKey(InventoryLocation, on_delete=models.PROTECT, related_name="count_sessions")
+    status = models.CharField(max_length=10, choices=Status.choices, default=Status.OPEN)
+    notes = models.CharField(max_length=255, blank=True)
+    created_by = models.ForeignKey("users.User", on_delete=models.PROTECT, related_name="stock_count_sessions")
+    closed_by = models.ForeignKey(
+        "users.User", null=True, blank=True, on_delete=models.PROTECT, related_name="closed_stock_count_sessions"
+    )
+    applied_by = models.ForeignKey(
+        "users.User", null=True, blank=True, on_delete=models.PROTECT, related_name="applied_stock_count_sessions"
+    )
+    closed_at = models.DateTimeField(null=True, blank=True)
+    applied_at = models.DateTimeField(null=True, blank=True)
+
+
+class StockCountItem(TimeStampedModel):
+    session = models.ForeignKey(StockCountSession, on_delete=models.CASCADE, related_name="items")
+    product = models.ForeignKey(Product, on_delete=models.PROTECT, related_name="stock_count_items")
+    expected_quantity = models.DecimalField(max_digits=14, decimal_places=3, default=Decimal("0"))
+    counted_quantity = models.DecimalField(max_digits=14, decimal_places=3, null=True, blank=True)
+    difference_quantity = models.DecimalField(max_digits=14, decimal_places=3, default=Decimal("0"))
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["session", "product"], name="unique_count_item_per_product")]
+
+
 class Recipe(TimeStampedModel):
     name = models.CharField(max_length=140, unique=True)
     sale_product = models.OneToOneField(Product, on_delete=models.CASCADE, related_name="recipe")

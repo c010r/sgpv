@@ -42,8 +42,11 @@ API para centros nocturnos con:
 
 ## Reportes
 - Dashboard: `/api/reportes/dashboard/`
+- Kardex: `/api/reportes/kardex/?product_id=<id>&location_id=<id_opcional>`
 - Ventas por dia: `/api/reportes/ventas-por-dia/`
 - Ventas por barra: `/api/reportes/ventas-por-barra/`
+- Ventas por cajero: `/api/reportes/ventas-por-cajero/`
+- Cierres de caja: `/api/reportes/cierres-caja/`
 - Top productos: `/api/reportes/top-productos/`
 - Movimientos inventario: `/api/reportes/movimientos-inventario/`
 
@@ -66,6 +69,21 @@ Ejemplo:
 
 ## Pruebas
 - Ejecutar tests: `pytest -q`
+
+## Flujos nuevos
+- Cierre de caja con desglose por metodo (`CASH`, `CARD`, `TRANSFER`) y diferencia.
+- Aprobacion de cierre con diferencia: `POST /api/sesiones-caja/<id>/approve_close/` (supervisor+).
+- Reapertura controlada: `POST /api/sesiones-caja/<id>/reopen/` (supervisor+).
+- Venta idempotente: enviar `idempotency_key` en `POST /api/ventas/create_sale/`.
+- Venta con `discount_amount` y `surcharge_amount`.
+- Comprobante interno: `GET /api/ventas/<id>/receipt/`.
+- Invitados CSV preview: `POST /api/listas-invitados/<id>/preview_csv/`.
+- Ocupacion lista invitados: `GET /api/listas-invitados/<id>/occupancy/`.
+- Transferencia masiva inventario: `POST /api/inventario/movimientos/bulk_transfer/`.
+- Conteo fisico/ciclico: `POST /api/inventario/conteos/start/`, `POST /api/inventario/conteos/<id>/close/`, `POST /api/inventario/conteos/<id>/apply/`.
+- Import CSV con jobs persistidos: `POST /api/listas-invitados/<id>/import_csv/` y `GET /api/listas-invitados/<id>/import_jobs/`.
+- Costeo configurable (`AVG`/`FIFO`) en configuracion del sistema.
+- Utilidad real por venta (`cost_total`, `gross_profit`) y por item (`line_cost_total`, `line_profit`).
 
 ## Deploy Tradicional
 - Guia completa: `deploy/README.md`

@@ -6,15 +6,24 @@ from rest_framework.response import Response
 from inventory.models import Product
 from sales.models import CashRegister, CashSession, Sale
 from sales.serializers import (
+    ApproveCashSessionSerializer,
     CancelSaleSerializer,
     CashRegisterSerializer,
     CashSessionSerializer,
     CloseCashSessionSerializer,
     OpenCashSessionSerializer,
+    ReopenCashSessionSerializer,
     SaleCreateSerializer,
     SaleSerializer,
 )
-from sales.services import cancel_sale, close_cash_session, create_sale, open_cash_session
+from sales.services import (
+    approve_cash_close,
+    cancel_sale,
+    close_cash_session_with_breakdown,
+    create_sale,
+    open_cash_session,
+    reopen_cash_session,
+)
 from settings_app.models import BarSession
 from users.permissions import IsCajeroOrAbove, IsSupervisorOrAbove
 
@@ -31,6 +40,8 @@ class CashSessionViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsCajeroOrAbove]
 
     def get_permissions(self):
+        if self.action in {"approve_close", "reopen"}:
+            return [IsSupervisorOrAbove()]
         if self.action in {"list", "retrieve", "open", "close"}:
             return [IsCajeroOrAbove()]
         return super().get_permissions()
@@ -61,14 +72,43 @@ class CashSessionViewSet(viewsets.ReadOnlyModelViewSet):
 
         session = self.get_object()
         try:
-            session = close_cash_session(
+            session = close_cash_session_with_breakdown(
                 session=session,
-                closing_amount=serializer.validated_data["closing_amount"],
+                breakdown=serializer.validated_data["breakdown"],
                 user=request.user,
             )
         except ValidationError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
+        return Response(self.get_serializer(session).data)
+
+    @action(methods=["post"], detail=True)
+    def approve_close(self, request, pk=None):
+        serializer = ApproveCashSessionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        if not serializer.validated_data["approve"]:
+            return Response({"detail": "approve=true es requerido"}, status=status.HTTP_400_BAD_REQUEST)
+
+        session = self.get_object()
+        try:
+            session = approve_cash_close(session=session, user=request.user)
+        except ValidationError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(self.get_serializer(session).data)
+
+    @action(methods=["post"], detail=True)
+    def reopen(self, request, pk=None):
+        serializer = ReopenCashSessionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        session = self.get_object()
+        try:
+            session = reopen_cash_session(
+                session=session,
+                reason=serializer.validated_data["reason"],
+                user=request.user,
+            )
+        except ValidationError as exc:
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         return Response(self.get_serializer(session).data)
 
 
@@ -109,18 +149,21 @@ class SaleViewSet(viewsets.ReadOnlyModelViewSet):
             )
 
         try:
-            sale = create_sale(
+            sale, created = create_sale(
                 bar_session=bar_session,
                 cash_session=cash_session,
                 items=items,
                 payments=data["payments"],
                 user=request.user,
+                discount_amount=data.get("discount_amount") or 0,
+                surcharge_amount=data.get("surcharge_amount") or 0,
+                idempotency_key=(data.get("idempotency_key") or None),
             )
         except ValidationError as exc:
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         payload = SaleSerializer(sale).data
-        return Response(payload, status=status.HTTP_201_CREATED)
+        return Response(payload, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
     @action(methods=["post"], detail=True)
     def cancel(self, request, pk=None):
@@ -134,3 +177,35 @@ class SaleViewSet(viewsets.ReadOnlyModelViewSet):
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(SaleSerializer(sale).data)
+
+    @action(methods=["get"], detail=True)
+    def receipt(self, request, pk=None):
+        sale = self.get_object()
+        items = []
+        for item in sale.items.select_related("product").all():
+            items.append(
+                {
+                    "product": item.product.name,
+                    "quantity": str(item.quantity),
+                    "unit_price": str(item.unit_price),
+                    "unit_cost": str(item.unit_cost),
+                    "line_total": str(item.line_total),
+                    "line_cost_total": str(item.line_cost_total),
+                    "line_profit": str(item.line_profit),
+                }
+            )
+        payments = [{"method": p.method, "amount": str(p.amount)} for p in sale.payments.all()]
+        payload = {
+            "sale_id": sale.id,
+            "created_at": sale.created_at.isoformat(),
+            "status": sale.status,
+            "subtotal": str(sale.subtotal),
+            "discount_amount": str(sale.discount_amount),
+            "surcharge_amount": str(sale.surcharge_amount),
+            "cost_total": str(sale.cost_total),
+            "gross_profit": str(sale.gross_profit),
+            "total": str(sale.total),
+            "items": items,
+            "payments": payments,
+        }
+        return Response(payload)
