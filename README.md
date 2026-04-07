@@ -67,6 +67,15 @@ Ejemplo:
 ## Pruebas
 - Ejecutar tests: `pytest -q`
 
+## Deploy Tradicional
+- Guia completa: `deploy/README.md`
+- Servicios systemd: `deploy/systemd/`
+- Config Nginx: `deploy/nginx/sgpv.conf`
+- Scripts: `scripts/deploy.sh` y `scripts/backup.sh`
+
+## CI
+- GitHub Actions corre `manage.py check`, `migrate` y `pytest` en cada push/pull request.
+
 ## Documentacion API
 - OpenAPI: `/api/schema/`
 - Swagger UI: `/api/docs/`
