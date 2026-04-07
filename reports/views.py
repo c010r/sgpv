@@ -26,6 +26,26 @@ def maybe_export_response(request, *, title, rows, pdf_filename, xlsx_filename):
     return None
 
 
+def _parse_positive_int(value, default, minimum=1, maximum=500):
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    if parsed < minimum:
+        return minimum
+    if parsed > maximum:
+        return maximum
+    return parsed
+
+
+def _parse_offset(value, default=0):
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    return max(parsed, 0)
+
+
 def apply_sale_filters(queryset, request):
     from_date = request.query_params.get("from")
     to_date = request.query_params.get("to")
@@ -499,8 +519,15 @@ class AlertEventsReportView(APIView):
         queryset = AlertEvent.objects.all()
         if status_filter:
             queryset = queryset.filter(status=status_filter)
+        order_by = request.query_params.get("order_by", "-id")
+        allowed_order = {"id", "-id", "created_at", "-created_at", "severity", "-severity"}
+        if order_by not in allowed_order:
+            order_by = "-id"
+        limit = _parse_positive_int(request.query_params.get("limit"), default=200, maximum=500)
+        offset = _parse_offset(request.query_params.get("offset"), default=0)
+        page = queryset.order_by(order_by)[offset : offset + limit]
         rows = []
-        for alert in queryset.order_by("-id")[:200]:
+        for alert in page:
             rows.append(
                 {
                     "id": alert.id,
@@ -516,7 +543,7 @@ class AlertEventsReportView(APIView):
                     "payload": alert.payload,
                 }
             )
-        return Response(rows)
+        return Response({"count": len(rows), "limit": limit, "offset": offset, "results": rows})
 
     def post(self, request):
         threshold = request.data.get("low_stock_threshold", 10)
@@ -605,9 +632,16 @@ class AlertAttemptsReportView(APIView):
             queryset = queryset.filter(created_at__date__gte=from_date)
         if to_date:
             queryset = queryset.filter(created_at__date__lte=to_date)
+        order_by = request.query_params.get("order_by", "-id")
+        allowed_order = {"id", "-id", "created_at", "-created_at", "attempt_number", "-attempt_number"}
+        if order_by not in allowed_order:
+            order_by = "-id"
+        limit = _parse_positive_int(request.query_params.get("limit"), default=300, maximum=500)
+        offset = _parse_offset(request.query_params.get("offset"), default=0)
+        page = queryset.order_by(order_by)[offset : offset + limit]
 
         rows = []
-        for attempt in queryset.order_by("-id")[:300]:
+        for attempt in page:
             rows.append(
                 {
                     "id": attempt.id,
@@ -620,4 +654,4 @@ class AlertAttemptsReportView(APIView):
                     "error_message": attempt.error_message,
                 }
             )
-        return Response({"alert_id": alert.id, "attempts": rows, "count": len(rows)})
+        return Response({"alert_id": alert.id, "attempts": rows, "count": len(rows), "limit": limit, "offset": offset})

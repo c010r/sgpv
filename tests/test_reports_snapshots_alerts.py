@@ -4,6 +4,7 @@ import pytest
 from rest_framework.test import APIClient
 
 from inventory.models import InventoryLocation, InventoryStock, Product
+from reports.models import AlertEvent
 from sales.models import CashRegister, CashSession, Sale
 from settings_app.models import Bar, BarSession
 
@@ -82,7 +83,7 @@ def test_supervisor_can_scan_alerts_sync(supervisor):
 
     list_resp = client.get("/api/reportes/alertas/")
     assert list_resp.status_code == 200
-    alert_types = {row["alert_type"] for row in list_resp.data}
+    alert_types = {row["alert_type"] for row in list_resp.data["results"]}
     assert "LOW_STOCK" in alert_types
     assert "CASH_DIFFERENCE" in alert_types
 
@@ -126,7 +127,7 @@ def test_alert_scan_deduplicates_in_window(supervisor, settings):
 
     list_resp = client.get("/api/reportes/alertas/")
     assert list_resp.status_code == 200
-    low_stock = [row for row in list_resp.data if row["alert_type"] == "LOW_STOCK"]
+    low_stock = [row for row in list_resp.data["results"] if row["alert_type"] == "LOW_STOCK"]
     assert len(low_stock) == 1
     assert low_stock[0]["occurrence_count"] == 2
 
@@ -184,3 +185,24 @@ def test_cajero_cannot_access_snapshots_and_alerts(cajero):
 
     summary_resp = client.get("/api/reportes/alertas/resumen/")
     assert summary_resp.status_code == 403
+
+
+@pytest.mark.django_db
+def test_alerts_list_supports_pagination_and_ordering(supervisor):
+    for i in range(5):
+        AlertEvent.objects.create(
+            alert_type=AlertEvent.AlertType.LOW_STOCK,
+            severity=AlertEvent.Severity.MEDIUM,
+            message=f"A{i}",
+            payload={"n": i},
+        )
+
+    client = APIClient()
+    client.force_authenticate(user=supervisor)
+    resp = client.get("/api/reportes/alertas/?order_by=id&limit=2&offset=1")
+    assert resp.status_code == 200
+    assert resp.data["count"] == 2
+    assert resp.data["limit"] == 2
+    assert resp.data["offset"] == 1
+    ids = [row["id"] for row in resp.data["results"]]
+    assert ids == sorted(ids)

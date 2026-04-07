@@ -104,13 +104,16 @@ def test_supervisor_can_query_alert_attempts_with_filters(supervisor, settings):
     client = APIClient()
     client.force_authenticate(user=supervisor)
     response = client.get(
-        f"/api/reportes/alertas/{alert.id}/attempts/?channel=WEBHOOK&status=FAILED",
+        f"/api/reportes/alertas/{alert.id}/attempts/?channel=WEBHOOK&status=FAILED&order_by=attempt_number&limit=1&offset=1",
     )
     assert response.status_code == 200
     assert response.data["alert_id"] == alert.id
-    assert response.data["count"] == 2
+    assert response.data["count"] == 1
+    assert response.data["limit"] == 1
+    assert response.data["offset"] == 1
     assert all(a["channel"] == "WEBHOOK" for a in response.data["attempts"])
     assert all(a["status"] == "FAILED" for a in response.data["attempts"])
+    assert response.data["attempts"][0]["attempt_number"] == 2
 
 
 @pytest.mark.django_db
