@@ -25,6 +25,23 @@ cp .env.example .env
 
 Editar `.env` para producción (`DJANGO_ENV=production`, credenciales de PostgreSQL, hosts, CORS, etc.).
 
+Checklist minimo recomendado en `.env`:
+- `DJANGO_ENV=production`
+- `DEBUG=0`
+- `SECRET_KEY` no default
+- `ALLOWED_HOSTS` definido (sin `*`)
+- `CORS_ALLOW_ALL_ORIGINS=0`
+- `DB_*` apuntando a PostgreSQL real
+- `USE_REDIS=1` (si usaras Celery/colas en prod)
+- `THROTTLE_*` ajustados al trafico esperado
+
+Validar entorno antes de deploy:
+
+```bash
+chmod +x scripts/check_production_env.sh
+APP_DIR=/opt/sgpv ./scripts/check_production_env.sh
+```
+
 ## 3. Instalar servicios systemd
 
 ```bash
@@ -44,12 +61,22 @@ sudo nginx -t
 sudo systemctl restart nginx
 ```
 
+Opcional recomendado:
+- TLS con Let's Encrypt (`certbot`) y redirección HTTP->HTTPS
+- agregar headers de seguridad (`X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`)
+
 ## 5. Desplegar
 
 ```bash
 chmod +x scripts/deploy.sh scripts/backup.sh
 APP_DIR=/opt/sgpv BRANCH=main ./scripts/deploy.sh
 ```
+
+Post-deploy checklist:
+- `sudo systemctl status sgpv-gunicorn sgpv-celery sgpv-celery-beat --no-pager`
+- `curl -f http://127.0.0.1/healthz/` (o tu dominio)
+- verificar logs `journalctl -u sgpv-gunicorn -n 100 --no-pager`
+- ejecutar `pytest -q` en staging antes de prod
 
 ## 6. Backups
 

@@ -113,7 +113,7 @@ Ejemplo:
 - Guia completa: `deploy/README.md`
 - Servicios systemd: `deploy/systemd/`
 - Config Nginx: `deploy/nginx/sgpv.conf`
-- Scripts: `scripts/deploy.sh` y `scripts/backup.sh`
+- Scripts: `scripts/deploy.sh`, `scripts/backup.sh` y `scripts/check_production_env.sh`
 
 ## CI
 - GitHub Actions corre `manage.py check`, `migrate` y `pytest` en cada push/pull request.
