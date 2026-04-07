@@ -83,6 +83,40 @@ def test_alert_webhook_all_retries_fail(settings):
 
 
 @pytest.mark.django_db
+def test_webhook_includes_hmac_headers_when_signing_enabled(settings):
+    settings.ALERT_WEBHOOK_URL = "https://example.org/hook"
+    settings.ALERT_WEBHOOK_SIGNING_SECRET = "secret123"
+    settings.ALERT_WEBHOOK_SIGNATURE_HEADER = "X-SGPV-Signature"
+    settings.ALERT_WEBHOOK_TIMESTAMP_HEADER = "X-SGPV-Timestamp"
+    settings.ALERT_EMAIL_TO = ""
+    settings.ALERT_SLACK_WEBHOOK_URL = ""
+    settings.ALERT_TELEGRAM_BOT_TOKEN = ""
+    settings.ALERT_TELEGRAM_CHAT_ID = ""
+    settings.ALERT_MAX_RETRIES = 1
+
+    alert = AlertEvent.objects.create(
+        alert_type=AlertEvent.AlertType.LOW_STOCK,
+        severity=AlertEvent.Severity.HIGH,
+        message="Firma webhook",
+        payload={"a": 1},
+    )
+
+    captured_headers = {}
+
+    def _capture(req, timeout=5):
+        _ = timeout
+        captured_headers.update({k.lower(): v for k, v in req.header_items()})
+        return _DummyResponse(status=200, body=b"ok")
+
+    with mock.patch("reports.tasks.urlrequest.urlopen", side_effect=_capture):
+        _send_alert(alert)
+
+    assert "x-sgpv-signature" in captured_headers
+    assert captured_headers["x-sgpv-signature"].startswith("sha256=")
+    assert "x-sgpv-timestamp" in captured_headers
+
+
+@pytest.mark.django_db
 def test_supervisor_can_query_alert_attempts_with_filters(supervisor, settings):
     settings.ALERT_WEBHOOK_URL = "https://example.org/hook"
     settings.ALERT_EMAIL_TO = ""

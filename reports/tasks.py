@@ -1,4 +1,6 @@
 import json
+import hmac
+import hashlib
 from datetime import timedelta
 from decimal import Decimal
 from urllib import request as urlrequest
@@ -73,7 +75,18 @@ def _send_to_webhook(alert: AlertEvent):
     if not webhook_url:
         return False, None, "", "Webhook no configurado"
     payload = json.dumps(_alert_payload(alert)).encode("utf-8")
-    req = urlrequest.Request(webhook_url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+    headers = {"Content-Type": "application/json"}
+    signing_secret = getattr(settings, "ALERT_WEBHOOK_SIGNING_SECRET", "")
+    if signing_secret:
+        timestamp = str(int(timezone.now().timestamp()))
+        msg = timestamp.encode("utf-8") + b"." + payload
+        digest = hmac.new(signing_secret.encode("utf-8"), msg, hashlib.sha256).hexdigest()
+        signature_header = getattr(settings, "ALERT_WEBHOOK_SIGNATURE_HEADER", "X-SGPV-Signature")
+        timestamp_header = getattr(settings, "ALERT_WEBHOOK_TIMESTAMP_HEADER", "X-SGPV-Timestamp")
+        headers[signature_header] = f"sha256={digest}"
+        headers[timestamp_header] = timestamp
+
+    req = urlrequest.Request(webhook_url, data=payload, headers=headers, method="POST")
     try:
         with urlrequest.urlopen(req, timeout=5) as resp:
             body = (resp.read() or b"").decode("utf-8", errors="ignore")[:500]
