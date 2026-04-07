@@ -143,3 +143,20 @@ Notas:
 - En el panel puedes definir `API Base URL` (por defecto `http://127.0.0.1:8000`).
 - Login con JWT usando tus usuarios (`admin`, `supervisor`, `cajero`).
 - Modulos incluidos: dashboard, ventas, inventario, invitados, reportes y configuracion.
+
+## Frontend React (Paso Pro)
+- Ubicacion: `frontend-react/`
+- Stack: React + Vite
+- Modulos: dashboard, ventas, inventario, invitados, reportes, configuracion
+- Incluye paginacion `limit/offset` en listados principales
+
+Ejecutar:
+
+```bash
+cd frontend-react
+npm install
+npm run dev
+```
+
+Abrir:
+- `http://127.0.0.1:5174`
