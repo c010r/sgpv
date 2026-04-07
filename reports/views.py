@@ -7,6 +7,8 @@ from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.models import AuditLog
+from core.throttles import AlertsScanThrottle, ReportsReadThrottle, ReportsWriteThrottle
 from inventory.models import InventoryMovement, InventoryStock
 from reports.excel import render_excel_report
 from reports.models import AlertDispatchAttempt, AlertEvent, DailyFinancialSnapshot
@@ -63,7 +65,48 @@ def apply_sale_filters(queryset, request):
     return queryset
 
 
-class SalesByDayReportView(APIView):
+class BaseReportAPIView(APIView):
+    throttle_classes = [ReportsReadThrottle]
+
+    def get_throttles(self):
+        if self.request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+            return [ReportsWriteThrottle()]
+        return [throttle() for throttle in self.throttle_classes]
+
+    def _audit_access(self, request, status_code):
+        user = request.user if request.user and request.user.is_authenticated else None
+        query_params = {}
+        if hasattr(request, "GET"):
+            for key, values in request.GET.lists():
+                query_params[key] = values if len(values) > 1 else (values[0] if values else "")
+        AuditLog.objects.create(
+            action="REPORT_ACCESS",
+            model_name="ReportEndpoint",
+            object_id=request.path,
+            actor=user,
+            metadata={
+                "method": request.method,
+                "path": request.path,
+                "query_params": query_params,
+                "status_code": status_code,
+            },
+        )
+
+    def dispatch(self, request, *args, **kwargs):
+        response = None
+        try:
+            response = super().dispatch(request, *args, **kwargs)
+            return response
+        finally:
+            status_code = getattr(response, "status_code", 500)
+            try:
+                self._audit_access(request, status_code)
+            except Exception:
+                # Audit never should break the API response path.
+                pass
+
+
+class SalesByDayReportView(BaseReportAPIView):
     permission_classes = [IsSupervisorOrAbove]
 
     def get(self, request):
@@ -85,7 +128,7 @@ class SalesByDayReportView(APIView):
         return exported or Response(rows)
 
 
-class SalesByBarReportView(APIView):
+class SalesByBarReportView(BaseReportAPIView):
     permission_classes = [IsSupervisorOrAbove]
 
     def get(self, request):
@@ -106,7 +149,7 @@ class SalesByBarReportView(APIView):
         return exported or Response(rows)
 
 
-class TopProductsReportView(APIView):
+class TopProductsReportView(BaseReportAPIView):
     permission_classes = [IsSupervisorOrAbove]
 
     def get(self, request):
@@ -127,7 +170,7 @@ class TopProductsReportView(APIView):
         return exported or Response(rows)
 
 
-class InventoryMovementsReportView(APIView):
+class InventoryMovementsReportView(BaseReportAPIView):
     permission_classes = [IsSupervisorOrAbove]
 
     def get(self, request):
@@ -147,7 +190,7 @@ class InventoryMovementsReportView(APIView):
         return exported or Response(rows)
 
 
-class SalesByCashierReportView(APIView):
+class SalesByCashierReportView(BaseReportAPIView):
     permission_classes = [IsSupervisorOrAbove]
 
     def get(self, request):
@@ -168,7 +211,7 @@ class SalesByCashierReportView(APIView):
         return exported or Response(rows)
 
 
-class CashSessionCloseReportView(APIView):
+class CashSessionCloseReportView(BaseReportAPIView):
     permission_classes = [IsSupervisorOrAbove]
 
     def get(self, request):
@@ -204,7 +247,7 @@ class CashSessionCloseReportView(APIView):
         return exported or Response(rows)
 
 
-class ProfitByProductReportView(APIView):
+class ProfitByProductReportView(BaseReportAPIView):
     permission_classes = [IsSupervisorOrAbove]
 
     def get(self, request):
@@ -245,7 +288,7 @@ class ProfitByProductReportView(APIView):
         return exported or Response(rows)
 
 
-class ProfitByRecipeReportView(APIView):
+class ProfitByRecipeReportView(BaseReportAPIView):
     permission_classes = [IsSupervisorOrAbove]
 
     def get(self, request):
@@ -290,7 +333,7 @@ class ProfitByRecipeReportView(APIView):
         return exported or Response(rows)
 
 
-class FinancialSummaryReportView(APIView):
+class FinancialSummaryReportView(BaseReportAPIView):
     permission_classes = [IsSupervisorOrAbove]
 
     def get(self, request):
@@ -329,7 +372,7 @@ class FinancialSummaryReportView(APIView):
         return exported or Response(rows[0])
 
 
-class DashboardReportView(APIView):
+class DashboardReportView(BaseReportAPIView):
     permission_classes = [IsSupervisorOrAbove]
 
     def get(self, request):
@@ -424,7 +467,7 @@ class DashboardReportView(APIView):
         return Response(payload)
 
 
-class KardexReportView(APIView):
+class KardexReportView(BaseReportAPIView):
     permission_classes = [IsSupervisorOrAbove]
 
     def get(self, request):
@@ -474,7 +517,7 @@ class KardexReportView(APIView):
         return exported or Response(rows)
 
 
-class DailySnapshotReportView(APIView):
+class DailySnapshotReportView(BaseReportAPIView):
     permission_classes = [IsSupervisorOrAbove]
 
     def get(self, request):
@@ -511,8 +554,13 @@ class DailySnapshotReportView(APIView):
         return Response({"detail": "Snapshot solicitado", "task_id": task.id}, status=status.HTTP_202_ACCEPTED)
 
 
-class AlertEventsReportView(APIView):
+class AlertEventsReportView(BaseReportAPIView):
     permission_classes = [IsSupervisorOrAbove]
+
+    def get_throttles(self):
+        if self.request.method == "POST":
+            return [AlertsScanThrottle()]
+        return super().get_throttles()
 
     def get(self, request):
         status_filter = request.query_params.get("status")
@@ -555,7 +603,7 @@ class AlertEventsReportView(APIView):
         return Response({"detail": "Scan de alertas solicitado", "task_id": task.id}, status=status.HTTP_202_ACCEPTED)
 
 
-class AlertResolveView(APIView):
+class AlertResolveView(BaseReportAPIView):
     permission_classes = [IsSupervisorOrAbove]
 
     def post(self, request, alert_id):
@@ -568,7 +616,7 @@ class AlertResolveView(APIView):
         return Response({"detail": "Alerta resuelta", "id": alert.id, "status": alert.status})
 
 
-class AlertSummaryReportView(APIView):
+class AlertSummaryReportView(BaseReportAPIView):
     permission_classes = [IsSupervisorOrAbove]
 
     def get(self, request):
@@ -609,7 +657,7 @@ class AlertSummaryReportView(APIView):
         )
 
 
-class AlertAttemptsReportView(APIView):
+class AlertAttemptsReportView(BaseReportAPIView):
     permission_classes = [IsSupervisorOrAbove]
 
     def get(self, request, alert_id):

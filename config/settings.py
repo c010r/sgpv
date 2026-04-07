@@ -126,6 +126,10 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "user": os.getenv("THROTTLE_USER_RATE", "3000/hour"),
         "anon": os.getenv("THROTTLE_ANON_RATE", "100/hour"),
+        "sales_create": os.getenv("THROTTLE_SALES_CREATE_RATE", "120/minute"),
+        "reports_read": os.getenv("THROTTLE_REPORTS_READ_RATE", "600/minute"),
+        "reports_write": os.getenv("THROTTLE_REPORTS_WRITE_RATE", "120/minute"),
+        "alerts_scan": os.getenv("THROTTLE_ALERTS_SCAN_RATE", "30/minute"),
     },
 }
 

@@ -3,6 +3,7 @@ from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
+from core.throttles import SalesCreateThrottle
 from inventory.models import Product
 from sales.models import CashRegister, CashSession, Sale
 from sales.serializers import (
@@ -124,7 +125,7 @@ class SaleViewSet(viewsets.ReadOnlyModelViewSet):
             return [IsCajeroOrAbove()]
         return super().get_permissions()
 
-    @action(methods=["post"], detail=False)
+    @action(methods=["post"], detail=False, throttle_classes=[SalesCreateThrottle])
     def create_sale(self, request):
         serializer = SaleCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

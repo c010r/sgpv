@@ -25,6 +25,7 @@ class AuditLog(TimeStampedModel):
         ("LOGIN", "Login"),
         ("LOGOUT", "Logout"),
         ("LOGIN_FAILED", "Login Failed"),
+        ("REPORT_ACCESS", "Report Access"),
     ]
 
     action = models.CharField(max_length=40, choices=ACTION_CHOICES)

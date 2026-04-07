@@ -100,6 +100,13 @@ Ejemplo:
 
 ## Permisos
 - Matriz RBAC documentada en `docs/permissions_matrix.md`.
+- Accesos a reportes auditados en `core_auditlog` (`action=REPORT_ACCESS`).
+
+## Rate Limiting por Endpoint
+- Venta (`POST /api/ventas/create_sale/`): `THROTTLE_SALES_CREATE_RATE`
+- Lectura de reportes (`GET /api/reportes/*`): `THROTTLE_REPORTS_READ_RATE`
+- Escritura en reportes (`POST /api/reportes/*`): `THROTTLE_REPORTS_WRITE_RATE`
+- Escaneo de alertas (`POST /api/reportes/alertas/`): `THROTTLE_ALERTS_SCAN_RATE`
 
 ## Deploy Tradicional
 - Guia completa: `deploy/README.md`
