@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from reports.models import AlertEvent, DailyFinancialSnapshot
+from reports.models import AlertDispatchAttempt, AlertEvent, DailyFinancialSnapshot
 
 
 @admin.register(DailyFinancialSnapshot)
@@ -16,4 +16,12 @@ class AlertEventAdmin(admin.ModelAdmin):
     list_display = ("id", "created_at", "alert_type", "severity", "status", "occurrence_count", "sent_via", "sent_at")
     list_filter = ("alert_type", "severity", "status", "sent_via")
     search_fields = ("message", "dedup_key")
+    ordering = ("-created_at",)
+
+
+@admin.register(AlertDispatchAttempt)
+class AlertDispatchAttemptAdmin(admin.ModelAdmin):
+    list_display = ("id", "created_at", "alert", "channel", "status", "attempt_number", "response_code")
+    list_filter = ("channel", "status")
+    search_fields = ("alert__message", "error_message")
     ordering = ("-created_at",)

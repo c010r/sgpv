@@ -10,7 +10,7 @@ from django.db.models import Count, F, Sum
 from django.utils import timezone
 
 from inventory.models import InventoryStock
-from reports.models import AlertEvent, DailyFinancialSnapshot
+from reports.models import AlertDispatchAttempt, AlertEvent, DailyFinancialSnapshot
 from sales.models import CashSession, Sale
 
 
@@ -57,41 +57,120 @@ def create_daily_financial_snapshot(target_date=None):
     return snap.id
 
 
-def _send_alert(alert: AlertEvent):
-    sent_channels = []
+def _alert_payload(alert: AlertEvent):
+    return {
+        "id": alert.id,
+        "type": alert.alert_type,
+        "severity": alert.severity,
+        "message": alert.message,
+        "payload": alert.payload,
+        "created_at": alert.created_at.isoformat(),
+    }
+
+
+def _send_to_webhook(alert: AlertEvent):
     webhook_url = getattr(settings, "ALERT_WEBHOOK_URL", "")
+    if not webhook_url:
+        return False, None, "", "Webhook no configurado"
+    payload = json.dumps(_alert_payload(alert)).encode("utf-8")
+    req = urlrequest.Request(webhook_url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urlrequest.urlopen(req, timeout=5) as resp:
+            body = (resp.read() or b"").decode("utf-8", errors="ignore")[:500]
+            code = getattr(resp, "status", 200)
+        return True, code, body, ""
+    except Exception as exc:
+        return False, None, "", str(exc)[:255]
+
+
+def _send_to_email(alert: AlertEvent):
     email_to = getattr(settings, "ALERT_EMAIL_TO", "")
+    recipients = [e.strip() for e in email_to.split(",") if e.strip()]
+    if not recipients:
+        return False, None, "", "Email no configurado"
+    try:
+        delivered = send_mail(
+            subject=f"[SGPV Alert] {alert.alert_type} {alert.severity}",
+            message=f"{alert.message}\n\n{json.dumps(alert.payload, ensure_ascii=False, indent=2)}",
+            from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "sgpv@localhost"),
+            recipient_list=recipients,
+            fail_silently=False,
+        )
+        if delivered > 0:
+            return True, 200, f"delivered={delivered}", ""
+        return False, None, "", "Sin destinatarios entregados"
+    except Exception as exc:
+        return False, None, "", str(exc)[:255]
 
-    if webhook_url:
-        payload = json.dumps(
-            {
-                "id": alert.id,
-                "type": alert.alert_type,
-                "severity": alert.severity,
-                "message": alert.message,
-                "payload": alert.payload,
-                "created_at": alert.created_at.isoformat(),
-            }
-        ).encode("utf-8")
-        req = urlrequest.Request(webhook_url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
-        try:
-            with urlrequest.urlopen(req, timeout=5):
-                sent_channels.append("webhook")
-        except Exception:
-            pass
 
-    if email_to:
-        try:
-            send_mail(
-                subject=f"[SGPV Alert] {alert.alert_type} {alert.severity}",
-                message=f"{alert.message}\n\n{json.dumps(alert.payload, ensure_ascii=False, indent=2)}",
-                from_email=getattr(settings, "DEFAULT_FROM_EMAIL", "sgpv@localhost"),
-                recipient_list=[e.strip() for e in email_to.split(",") if e.strip()],
-                fail_silently=True,
-            )
-            sent_channels.append("email")
-        except Exception:
-            pass
+def _send_to_slack(alert: AlertEvent):
+    slack_webhook = getattr(settings, "ALERT_SLACK_WEBHOOK_URL", "")
+    if not slack_webhook:
+        return False, None, "", "Slack no configurado"
+    msg = f"[{alert.alert_type}][{alert.severity}] {alert.message}"
+    payload = json.dumps({"text": msg}).encode("utf-8")
+    req = urlrequest.Request(slack_webhook, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urlrequest.urlopen(req, timeout=5) as resp:
+            body = (resp.read() or b"").decode("utf-8", errors="ignore")[:500]
+            code = getattr(resp, "status", 200)
+        return True, code, body, ""
+    except Exception as exc:
+        return False, None, "", str(exc)[:255]
+
+
+def _send_to_telegram(alert: AlertEvent):
+    token = getattr(settings, "ALERT_TELEGRAM_BOT_TOKEN", "")
+    chat_id = getattr(settings, "ALERT_TELEGRAM_CHAT_ID", "")
+    if not token or not chat_id:
+        return False, None, "", "Telegram no configurado"
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    msg = f"[{alert.alert_type}][{alert.severity}] {alert.message}"
+    payload = json.dumps({"chat_id": chat_id, "text": msg}).encode("utf-8")
+    req = urlrequest.Request(url, data=payload, headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urlrequest.urlopen(req, timeout=5) as resp:
+            body = (resp.read() or b"").decode("utf-8", errors="ignore")[:500]
+            code = getattr(resp, "status", 200)
+        return True, code, body, ""
+    except Exception as exc:
+        return False, None, "", str(exc)[:255]
+
+
+def _send_with_retries(alert: AlertEvent, *, channel: str, sender):
+    max_retries = int(getattr(settings, "ALERT_MAX_RETRIES", 3))
+    attempts = max(1, max_retries)
+    for attempt in range(1, attempts + 1):
+        ok, code, body, err = sender(alert)
+        AlertDispatchAttempt.objects.create(
+            alert=alert,
+            channel=channel,
+            status=AlertDispatchAttempt.Status.SUCCESS if ok else AlertDispatchAttempt.Status.FAILED,
+            attempt_number=attempt,
+            response_code=code,
+            response_body=body,
+            error_message=err,
+        )
+        if ok:
+            return True
+    return False
+
+
+def _send_alert(alert: AlertEvent):
+    channels = []
+    if getattr(settings, "ALERT_WEBHOOK_URL", ""):
+        channels.append((AlertDispatchAttempt.Channel.WEBHOOK, _send_to_webhook))
+    if getattr(settings, "ALERT_EMAIL_TO", ""):
+        channels.append((AlertDispatchAttempt.Channel.EMAIL, _send_to_email))
+    if getattr(settings, "ALERT_SLACK_WEBHOOK_URL", ""):
+        channels.append((AlertDispatchAttempt.Channel.SLACK, _send_to_slack))
+    if getattr(settings, "ALERT_TELEGRAM_BOT_TOKEN", "") and getattr(settings, "ALERT_TELEGRAM_CHAT_ID", ""):
+        channels.append((AlertDispatchAttempt.Channel.TELEGRAM, _send_to_telegram))
+
+    sent_channels = []
+    for channel_name, sender in channels:
+        if _send_with_retries(alert, channel=channel_name, sender=sender):
+            sent_channels.append(channel_name.lower())
 
     if sent_channels:
         alert.status = AlertEvent.Status.SENT

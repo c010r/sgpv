@@ -94,6 +94,7 @@ Ejemplo:
 - Snapshot financiero diario por task (`create_daily_financial_snapshot`) o forzado por API.
 - Escaneo de alertas de stock critico y diferencias de caja (`scan_and_dispatch_alerts`).
 - Deduplicacion de alertas por ventana temporal configurable (`ALERT_DEDUP_WINDOW_MINUTES`).
+- Entrega de alertas multi-canal (`webhook`, `email`, `slack`, `telegram`) con reintentos (`ALERT_MAX_RETRIES`) y bitacora de intentos.
 
 ## Permisos
 - Matriz RBAC documentada en `docs/permissions_matrix.md`.

@@ -45,3 +45,26 @@ class AlertEvent(TimeStampedModel):
 
     class Meta:
         ordering = ["-created_at"]
+
+
+class AlertDispatchAttempt(TimeStampedModel):
+    class Channel(models.TextChoices):
+        WEBHOOK = "WEBHOOK", "Webhook"
+        EMAIL = "EMAIL", "Email"
+        SLACK = "SLACK", "Slack"
+        TELEGRAM = "TELEGRAM", "Telegram"
+
+    class Status(models.TextChoices):
+        SUCCESS = "SUCCESS", "Exitoso"
+        FAILED = "FAILED", "Fallido"
+
+    alert = models.ForeignKey(AlertEvent, on_delete=models.CASCADE, related_name="dispatch_attempts")
+    channel = models.CharField(max_length=20, choices=Channel.choices)
+    status = models.CharField(max_length=10, choices=Status.choices)
+    attempt_number = models.PositiveIntegerField(default=1)
+    response_code = models.IntegerField(null=True, blank=True)
+    response_body = models.TextField(blank=True)
+    error_message = models.CharField(max_length=255, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
