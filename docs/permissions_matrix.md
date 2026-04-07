@@ -49,3 +49,4 @@ Roles:
 
 ## Reportes
 Todos los endpoints `/api/reportes/*`: `SUPERVISOR+`
+- Incluye: `/api/reportes/alertas/<id>/attempts/`

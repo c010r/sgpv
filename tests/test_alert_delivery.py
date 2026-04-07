@@ -1,6 +1,7 @@
 from unittest import mock
 
 import pytest
+from rest_framework.test import APIClient
 
 from reports.models import AlertDispatchAttempt, AlertEvent
 from reports.tasks import _send_alert
@@ -79,3 +80,48 @@ def test_alert_webhook_all_retries_fail(settings):
     assert alert.sent_via == ""
     assert len(attempts) == 2
     assert all(a.status == AlertDispatchAttempt.Status.FAILED for a in attempts)
+
+
+@pytest.mark.django_db
+def test_supervisor_can_query_alert_attempts_with_filters(supervisor, settings):
+    settings.ALERT_WEBHOOK_URL = "https://example.org/hook"
+    settings.ALERT_EMAIL_TO = ""
+    settings.ALERT_SLACK_WEBHOOK_URL = ""
+    settings.ALERT_TELEGRAM_BOT_TOKEN = ""
+    settings.ALERT_TELEGRAM_CHAT_ID = ""
+    settings.ALERT_MAX_RETRIES = 2
+
+    alert = AlertEvent.objects.create(
+        alert_type=AlertEvent.AlertType.LOW_STOCK,
+        severity=AlertEvent.Severity.MEDIUM,
+        message="Stock bajo",
+        payload={"p": 1},
+    )
+
+    with mock.patch("reports.tasks.urlrequest.urlopen", side_effect=Exception("down")):
+        _send_alert(alert)
+
+    client = APIClient()
+    client.force_authenticate(user=supervisor)
+    response = client.get(
+        f"/api/reportes/alertas/{alert.id}/attempts/?channel=WEBHOOK&status=FAILED",
+    )
+    assert response.status_code == 200
+    assert response.data["alert_id"] == alert.id
+    assert response.data["count"] == 2
+    assert all(a["channel"] == "WEBHOOK" for a in response.data["attempts"])
+    assert all(a["status"] == "FAILED" for a in response.data["attempts"])
+
+
+@pytest.mark.django_db
+def test_cajero_cannot_query_alert_attempts(cajero):
+    alert = AlertEvent.objects.create(
+        alert_type=AlertEvent.AlertType.CASH_DIFFERENCE,
+        severity=AlertEvent.Severity.HIGH,
+        message="Caja descuadre",
+        payload={"d": "1"},
+    )
+    client = APIClient()
+    client.force_authenticate(user=cajero)
+    response = client.get(f"/api/reportes/alertas/{alert.id}/attempts/")
+    assert response.status_code == 403

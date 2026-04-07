@@ -54,6 +54,7 @@ API para centros nocturnos con:
 - Alertas operativas (GET/POST): `/api/reportes/alertas/`
 - Resumen alertas: `/api/reportes/alertas/resumen/`
 - Resolver alerta: `POST /api/reportes/alertas/<id>/resolve/`
+- Intentos de entrega por alerta: `GET /api/reportes/alertas/<id>/attempts/?channel=WEBHOOK&status=FAILED&from=YYYY-MM-DD&to=YYYY-MM-DD`
 - Top productos: `/api/reportes/top-productos/`
 - Movimientos inventario: `/api/reportes/movimientos-inventario/`
 

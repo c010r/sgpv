@@ -1,6 +1,7 @@
 from django.urls import path
 
 from reports.views import (
+    AlertAttemptsReportView,
     AlertEventsReportView,
     AlertResolveView,
     AlertSummaryReportView,
@@ -30,6 +31,7 @@ urlpatterns = [
     path("reportes/alertas/", AlertEventsReportView.as_view(), name="reporte-alertas"),
     path("reportes/alertas/resumen/", AlertSummaryReportView.as_view(), name="reporte-alertas-resumen"),
     path("reportes/alertas/<int:alert_id>/resolve/", AlertResolveView.as_view(), name="reporte-alertas-resolve"),
+    path("reportes/alertas/<int:alert_id>/attempts/", AlertAttemptsReportView.as_view(), name="reporte-alertas-attempts"),
     path("reportes/ventas-por-dia/", SalesByDayReportView.as_view(), name="reporte-ventas-por-dia"),
     path("reportes/ventas-por-barra/", SalesByBarReportView.as_view(), name="reporte-ventas-por-barra"),
     path("reportes/top-productos/", TopProductsReportView.as_view(), name="reporte-top-productos"),

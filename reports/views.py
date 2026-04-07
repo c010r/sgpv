@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 
 from inventory.models import InventoryMovement, InventoryStock
 from reports.excel import render_excel_report
-from reports.models import AlertEvent, DailyFinancialSnapshot
+from reports.models import AlertDispatchAttempt, AlertEvent, DailyFinancialSnapshot
 from reports.pdf import render_pdf_report
 from reports.tasks import create_daily_financial_snapshot, scan_and_dispatch_alerts
 from sales.models import CashSession, Sale, SaleItem
@@ -580,3 +580,44 @@ class AlertSummaryReportView(APIView):
                 },
             }
         )
+
+
+class AlertAttemptsReportView(APIView):
+    permission_classes = [IsSupervisorOrAbove]
+
+    def get(self, request, alert_id):
+        try:
+            alert = AlertEvent.objects.get(id=alert_id)
+        except AlertEvent.DoesNotExist:
+            return Response({"detail": "Alerta no encontrada"}, status=status.HTTP_404_NOT_FOUND)
+
+        queryset = AlertDispatchAttempt.objects.filter(alert=alert)
+        channel = request.query_params.get("channel")
+        status_filter = request.query_params.get("status")
+        from_date = request.query_params.get("from")
+        to_date = request.query_params.get("to")
+
+        if channel:
+            queryset = queryset.filter(channel=channel)
+        if status_filter:
+            queryset = queryset.filter(status=status_filter)
+        if from_date:
+            queryset = queryset.filter(created_at__date__gte=from_date)
+        if to_date:
+            queryset = queryset.filter(created_at__date__lte=to_date)
+
+        rows = []
+        for attempt in queryset.order_by("-id")[:300]:
+            rows.append(
+                {
+                    "id": attempt.id,
+                    "created_at": attempt.created_at.isoformat(),
+                    "channel": attempt.channel,
+                    "status": attempt.status,
+                    "attempt_number": attempt.attempt_number,
+                    "response_code": attempt.response_code,
+                    "response_body": attempt.response_body,
+                    "error_message": attempt.error_message,
+                }
+            )
+        return Response({"alert_id": alert.id, "attempts": rows, "count": len(rows)})
